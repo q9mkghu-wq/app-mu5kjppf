@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>꽃놀이 룰렛</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a2e;
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* 배경 별 효과 */
+  .stars {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle 2s infinite alternate;
+  }
+
+  @keyframes twinkle {
+    0% { opacity: 0.2; }
+    100% { opacity: 1; }
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 800px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* 제목 */
+  .title-wrap {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .title-main {
+    font-size: 3em;
+    font-weight: 900;
+    background: linear-gradient(90deg, #ff0080, #ff8c00, #ffff00, #00ff88, #00cfff, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+    animation: rainbow 3s linear infinite;
+    background-size: 300%;
+    letter-spacing: 4px;
+  }
+
+  @keyframes rainbow {
+    0% { background-position: 0%; }
+    100% { background-position: 300%; }
+  }
+
+  .title-sub {
+    color: #ffd700;
+    font-size: 1em;
+    letter-spacing: 6px;
+    margin-top: 5px;
+    text-shadow: 0 0 10px #ffd700;
+  }
+
+  /* 크레딧/점수 패널 */
+  .score-panel {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .score-box {
+    background: linear-gradient(135deg, #1a1a4e, #2a2a6e);
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    padding: 10px 24px;
+    text-align: center;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+  }
+
+  .score-label {
+    color: #aaa;
+    font-size: 0.75em;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .score-value {
+    color: #ffd700;
+    font-size: 1.6em;
+    font-weight: 900;
+    text-shadow: 0 0 10px rgba(255,215,0,0.8);
+  }
+
+  /* 꽃잎 룰렛 영역 */
+  .game-area {
+    position: relative;
+    width: 420px;
+    height: 420px;
+    margin: 10px auto;
+  }
+
+  /* 꽃 룰렛 캔버스 */
+  #rouletteCanvas {
+    border-radius: 50%;
+    box-shadow:
+      0 0 30px rgba(255, 100, 200, 0.6),
+      0 0 60px rgba(255, 100, 200, 0.3),
+      inset 0 0 20px rgba(0,0,0,0.5);
+    cursor: pointer;
+    transition: box-shadow 0.3s;
+  }
+
+  #rouletteCanvas:hover {
+    box-shadow:
+      0 0 40px rgba(255, 150, 220, 0.8),
+      0 0 80px rgba(255, 100, 200, 0.5);
+  }
+
+  /* 화살표 포인터 */
+  .pointer {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-top: 36px solid #ff2222;
+    filter: drop-shadow(0 0 8px #ff0000);
+    z-index: 10;
+  }
+
+  .pointer::before {
+    content: '';
+    position: absolute;
+    top: -44px;
+    left: -10px;
+    width: 20px;
+    height: 14px;
+    background: #ff2222;
+    border-radius: 4px 4px 0 0;
+  }
+
+  /* 중앙 버튼 */
+  .spin-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff 0%, #ffd700 40%, #ff8800 100%);
+    border: 4px solid #fff;
+    box-shadow: 0 0 20px rgba(255,200,0,0.8), 0 0 40px rgba(255,100,0,0.5);
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 0.9em;
+    color: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    transition: transform 0.1s, box-shadow 0.2s;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .spin-center:hover {
+    transform: translate(-50%, -50%) scale(1.08);
+    box-shadow: 0 0 30px rgba(255,220,0,1), 0 0 60px rgba(255,100,0,0.8);
+  }
+
+  .spin-center:active {
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+
+  .spin-center.disabled {
+    background: radial-gradient(circle, #888, #555);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  /* 베팅 영역 */
+  .bet-area {
+    background: linear-gradient(135deg, #0f0f3a, #1a1a5e);
+    border: 2px solid rgba(255, 215, 0, 0.4);
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 500px;
+    margin-top: 15px;
+  }
+
+  .bet-title {
+    color: #ffd700;
+    text-align: center;
+    font-size: 1em;
+    letter-spacing: 3px;
+    margin-bottom: 12px;
+    text-shadow: 0 0 8px rgba(255,215,0,0.6);
+  }
+
+  .bet-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+
+  .bet-btn {
+    background: linear-gradient(135deg, #2a2a6e, #1a1a4e);
+    border: 2px solid rgba(255,215,0,0.5);
+    color: #ffd700;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.9em;
+    transition: all 0.2s;
+  }
+
+  .bet-btn:hover {
+    background: linear-gradient(135deg, #ffd700, #ff8800);
+    color: #111;
+    border-color: #ffd700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255,215,0,0.4);
+  }
+
+  .bet-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .bet-label {
+    color: #aaa;
+    font-size: 0.85em;
+  }
+
+  .bet-amount {
+    color: #00ff88;
+    font-size: 1.4em;
+    font-weight: 900;
+    text-shadow: 0 0 8px rgba(0,255,136,0.6);
+    min-width: 80px;
+    text-align: center;
+  }
+
+  .bet-controls {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .bet-ctrl-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+  }
+
+  .bet-ctrl-btn:hover {
+    background: rgba(255,255,255,0.2);
+  }
+
+  /* 결과 메시지 */
+  .result-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0,0,0,0.5);
+  }
+
+  .result-overlay.show {
+    display: flex;
+  }
+
+  .result-box {
+    background: linear-gradient(135deg, #1a1a4e, #2a0a4e);
+    border: 3px solid #ffd700;
+    border-radius: 20px;
+    padding: 40px 50px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(255,215,0,0.5);
+    animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-width: 90vw;
+  }
+
+  @keyframes popIn {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .result-emoji {
+    font-size: 4em;
+    margin-bottom: 10px;
+  }
+
+  .result-title {
+    font-size: 2.5em;
+    font-weight: 900;
+    margin-bottom: 10px;
+  }
+
+  .result-win { color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.8); }
+  .result-lose { color: #ff4444; text-shadow: 0 0 20px rgba(255,68,68,0.8); }
+  .result-special { color: #00ff88; text-shadow: 0 0 20px rgba(0,255,136,0.8); }
+
+  .result-desc {
+    color: #ddd;
+    font-size: 1.1em;
+    margin-bottom: 20px;
+  }
+
+  .result-close {
+    background: linear-gradient(135deg, #ffd700, #ff8800);
+    color: #111;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 10px;
+    font-size: 1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .result-close:hover { transform: scale(1.05); }
+
+  /* 랭킹 패널 */
+  .ranking-panel {
+    background: linear-gradient(135deg, #0f0f3a, #1a1a5e);
+    border: 2px solid rgba(255,215,0,0.3);
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 500px;
+    margin-top: 15px;
+    margin-bottom: 30px;
+  }
+
+  .ranking-title {
+    color: #ffd700;
+    text-align: center;
+    font-size: 1em;
+    letter-spacing: 3px;
+    margin-bottom: 12px;
+    text-shadow: 0 0 8px rgba(255,215,0,0.6);
+  }
+
+  .ranking-list {
+    list-style: none;
+  }
+
+  .ranking-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    border-left: 3px solid;
+    animation: fadeInRow 0.3s ease;
+  }
+
+  @keyframes fadeInRow {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .ranking-item:nth-child(1) { border-color: #ffd700; }
+  .ranking-item:nth-child(2) { border-color: #c0c0c0; }
+  .ranking-item:nth-child(3) { border-color: #cd7f32; }
+  .ranking-item:nth-child(n+4) { border-color: #555; }
+
+  .rank-num {
+    font-size: 1.1em;
+    font-weight: 700;
+    width: 30px;
+    color: #aaa;
+  }
+
+  .ranking-item:nth-child(1) .rank-num { color: #ffd700; }
+  .ranking-item:nth-child(2) .rank-num { color: #c0c0c0; }
+  .ranking-item:nth-child(3) .rank-num { color: #cd7f32; }
+
+  .rank-name {
+    flex: 1;
+    color: #fff;
+    font-size: 0.95em;
+    margin-left: 8px;
+  }
+
+  .rank-score {
+    color: #00ff88;
+    font-weight: 700;
+    font-size: 0.95em;
+  }
+
+  /* 닉네임 입력 */
+  .name-area {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 15px;
+  }
+
+  .name-input {
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,215,0,0.4);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.95em;
+    width: 160px;
+    outline: none;
+  }
+
+  .name-input:focus {
+    border-color: #ffd700;
+    box-shadow: 0 0 8px rgba(255,215,0,0.3);
+  }
+
+  .name-btn {
+    background: linear-gradient(135deg, #ffd700, #ff8800);
+    color: #111;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: transform 0.2s;
+  }
+
+  .name-btn:hover { transform: scale(1.05); }
+
+  /* 꽃잎 파티클 */
+  .petal-particle {
+    position: fixed;
+    pointer-events: none;
+    z-index: 200;
+    font-size: 1.5em;
+    animation: petalFall 2s ease-in forwards;
+  }
+
+  @keyframes petalFall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(80vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* 반짝임 효과 */
+  .flash {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 150;
+    animation: flashAnim 0.3s ease-out forwards;
+  }
+
+  @keyframes flashAnim {
+    0% { background: rgba(255,255,200,0.8); }
+    100% { background: transparent; }
+  }
+
+  /* LED 효과 텍스트 */
+  .led-text {
+    color: #ff0;
+    text-align: center;
+    font-size: 0.8em;
+    letter-spacing: 2px;
+    margin-top: 8px;
+    animation: ledBlink 0.5s infinite alternate;
+  }
+
+  @keyframes ledBlink {
+    from { opacity: 0.6; color: #ff0; }
+    to { opacity: 1; color: #f80; }
+  }
+
+  /* 스핀 중 표시 */
+  .spinning-msg {
+    color: #ff88cc;
+    text-align: center;
+    font-size: 0.9em;
+    font-weight: 700;
+    margin-top: 10px;
+    min-height: 24px;
+    text-shadow: 0 0 8px rgba(255,136,204,0.6);
+    letter-spacing: 2px;
+  }
+
+  .segment-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  .seg-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 0.78em;
+    color: #ddd;
+  }
+
+  .seg-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 480px) {
+    .game-area { width: 320px; height: 320px; }
+    .title-main { font-size: 2em; }
+    .result-box { padding: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<div class="container">
+  <div class="title-wrap">
+    <div class="title-main">🌸 꽃 놀 이 🌸</div>
+    <div class="title-sub">★ HANA ASOBI ROULETTE ★</div>
+    <div class="led-text">🎰 INSERT COIN &amp; SPIN TO WIN! 🎰</div>
+  </div>
+
+  <div class="score-panel">
+    <div class="score-box">
+      <div class="score-label">CREDIT</div>
+      <div class="score-value" id="creditDisplay">1000</div>
+    </div>
+    <div class="score-box">
+      <div class="score-label">TOTAL WIN</div>
+      <div class="score-value" id="totalWinDisplay">0</div>
+    </div>
+    <div class="score-box">
+      <div class="score-label">SPINS</div>
+      <div class="score-value" id="spinCountDisplay">0</div>
+    </div>
+  </div>
+
+  <div class="game-area">
+    <div class="pointer"></div>
+    <canvas id="rouletteCanvas" width="420" height="420"></canvas>
+    <div class="spin-center" id="spinBtn">SPIN!</div>
+  </div>
+
+  <div class="spinning-msg" id="spinMsg"></div>
+
+  <div class="bet-area">
+    <div class="bet-title">🌸 BET 설정 🌸</div>
+    <div class="bet-buttons">
+      <button class="bet-btn" onclick="setBet(10)">10</button>
+      <button class="bet-btn" onclick="setBet(50)">50</button>
+      <button class="bet-btn" onclick="setBet(100)">100</button>
+      <button class="bet-btn" onclick="setBet(200)">200</button>
+      <button class="bet-btn" onclick="setBet(500)">500</button>
+      <button class="bet-btn" onclick="setMaxBet()">MAX</button>
+    </div>
+    <div class="bet-display">
+      <span class="bet-label">현재 베팅:</span>
+      <span class="bet-amount" id="betDisplay">100</span>
+    </div>
+    <div class="bet-controls">
+      <button class="bet-ctrl-btn" onclick="changeBet(-10)">-10</button>
+      <button class="bet-ctrl-btn" onclick="changeBet(-50)">-50</button>
+      <button class="bet-ctrl-btn" onclick="changeBet(10)">+10</button>
+      <button class="bet-ctrl-btn" onclick="changeBet(50)">+50</button>
+    </div>
+    <div class="segment-info" id="segInfo"></div>
+  </div>
+
+  <!-- 랭킹 -->
+  <div class="ranking-panel">
+    <div class="ranking-title">🏆 HIGH SCORE 🏆</div>
+    <div class="name-area">
+      <input type="text" class="name-input" id="playerName" placeholder="닉네임 입력" maxlength="10">
+      <button class="name-btn" onclick="submitScore()">등록</button>
+    </div>
+    <ul class="ranking-list" id="rankingList"></ul>
+  </div>
+</div>
+
+<!-- 결과 오버레이 -->
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-box">
+    <div class="result-emoji" id="resultEmoji"></div>
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-desc" id="resultDesc"></div>
+    <button class="result-close" onclick="closeResult()">계속하기</button>
+  </div>
+</div>
+
+<script>
+// Firebase 초기화
+const firebaseConfig = {"apiKey":"AIzaSyAA9XxN-Pw0vbLT0f8-mI2bV0FgEx18iIU","authDomain":"appbuilder-4e83c.firebaseapp.com","projectId":"appbuilder-4e83c","storageBucket":"appbuilder-4e83c.firebasestorage.app","messagingSenderId":"1038242551917","appId":"1:1038242551917:web:4d59995638762401dd0764"};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ===== 게임 설정 =====
+const SEGMENTS = [
+  { label: '🌸 JACKPOT', multiplier: 50, color: '#ff0088', textColor: '#fff', prob: 1 },
+  { label: '⭐ 7배', multiplier: 7, color: '#ff4400', textColor: '#fff', prob: 3 },
+  { label: '🌺 5배', multiplier: 5, color: '#ff8800', textColor: '#fff', prob: 5 },
+  { label: '💎 3배', multiplier: 3, color: '#ffcc00', textColor: '#111', prob: 8 },
+  { label: '🌼 2배', multiplier: 2, color: '#88ff00', textColor: '#111', prob: 12 },
+  { label: '✨ 1.5배', multiplier: 1.5, color: '#00ffcc', textColor: '#111', prob: 14 },
+  { label: '🎀 당첨', multiplier: 1, color: '#00aaff', textColor: '#fff', prob: 16 },
+  { label: '🌷 꽝', multiplier: 0, color: '#7722aa', textColor: '#fff', prob: 18 },
+  { label: '🌙 꽝', multiplier: 0, color: '#334488', textColor: '#fff', prob: 18 },
+  { label: '💔 꽝', multiplier: 0, color: '#663333', textColor: '#fff', prob: 5 },
+];
+
+// 가중치 배열 만들기
+let weightedSegments = [];
+SEGMENTS.forEach((seg, i) => {
+  for (let j = 0; j < seg.prob; j++) weightedSegments.push(i);
+});
+
+const TOTAL_SEGMENTS = SEGMENTS.length;
+const ARC = (Math.PI * 2) / TOTAL_SEGMENTS;
+
+// ===== 게임 상태 =====
+let credit = 1000;
+let totalWin = 0;
+let spinCount = 0;
+let bet = 100;
+let isSpinning = false;
+let currentAngle = 0;
+let animId = null;
+
+// ===== Canvas 설정 =====
+const canvas = document.getElementById('rouletteCanvas');
+const ctx = canvas.getContext('2d');
+const canvasSize = canvas.width;
+const cx = canvasSize / 2;
+const cy = canvasSize / 2;
+const radius = cx - 10;
+
+// ===== 별 배경 생성 =====
+function createStars() {
+  const container = document.getElementById('stars');
+  for (let i = 0; i < 80; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    const size = Math.random() * 3 + 1;
+    star.style.cssText = `
+      width: ${size}px; height: ${size}px;
+      top: ${Math.random() * 100}%;
+      left: ${Math.random() * 100}%;
+      animation-delay: ${Math.random() * 2}s;
+      animation-duration: ${1.5 + Math.random() * 2}s;
+    `;
+    container.appendChild(star);
+  }
+}
+
+// ===== 세그먼트 정보 표시 =====
+function renderSegInfo() {
+  const container = document.getElementById('segInfo');
+  container.innerHTML = '';
+  SEGMENTS.forEach(seg => {
+    const badge = document.createElement('div');
+    badge.className = 'seg-badge';
+    badge.innerHTML = `<div class="seg-color" style="background:${seg.color}"></div>${seg.label} (x${seg.multiplier})`;
+    container.appendChild(badge);
+  });
+}
+
+// ===== 룰렛 그리기 =====
+function drawRoulette(angle) {
+  ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+  // 바깥 테두리 원
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius + 8, 0, Math.PI * 2);
+  const borderGrad = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
+  borderGrad.addColorStop(0, '#ffd700');
+  borderGrad.addColorStop(0.5, '#ff88cc');
+  borderGrad.addColorStop(1, '#ffd700');
+  ctx.fillStyle = borderGrad;
+  ctx.fill();
+
+  // 세그먼트 그리기
+  for (let i = 0; i < TOTAL_SEGMENTS; i++) {
+    const startAngle = angle + i * ARC;
+    const endAngle = startAngle + ARC;
+    const seg = SEGMENTS[i];
+
+    // 섹션 채우기
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, startAngle, endAngle);
+    ctx.closePath();
+
+    // 그라디언트
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0, lightenColor(seg.color, 40));
+    grad.addColorStop(1, seg.color);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // 테두리
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 꽃잎 패턴 그리기 (장식)
+    const midAngle = startAngle + ARC / 2;
+    const petalR = radius * 0.65;
+    const px = cx + petalR * Math.cos(midAngle);
+    const py = cy + petalR * Math.sin(midAngle);
+
+    // 텍스트
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(midAngle + Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 이모지
+    ctx.font = `${radius * 0.09}px serif`;
+    ctx.fillText(seg.label.split(' ')[0], 0, -8);
+
+    // 배율 텍스트
+    ctx.font = `bold ${radius * 0.065}px sans-serif`;
+    ctx.fillStyle = seg.textColor;
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 4;
+    const labelText = seg.label.replace(/[^\x00-\x7F]/g, '').trim() ||
+      (seg.multiplier === 0 ? '꽝' : `x${seg.multiplier}`);
+    ctx.fillText(seg.multiplier > 0 ? `x${seg.multiplier}` : '꽝', 0, 10);
+    ctx.restore();
+  }
+
+  // 중앙 장식 원
+  ctx.beginPath();
+  ctx.arc(cx, cy, 45, 0, Math.PI * 2);
+  const centerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 45);
+  centerGrad.addColorStop(0, '#fffde0');
+  centerGrad.addColorStop(0.5, '#ffd700');
+  centerGrad.addColorStop(1, '#ff8800');
+  ctx.fillStyle = centerGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 꽃 장식
+  ctx.font = '28px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 5;
+  ctx.fillText('🌸', cx, cy);
+  ctx.shadowBlur = 0;
+}
+
+function lightenColor(hex, amount) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + amount);
+  const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+  const b = Math.min(255, (num & 0xff) + amount);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ===== 포인터가 가리키는 세그먼트 계산 =====
+function getResultSegment(finalAngle) {
+  // 포인터는 상단 (270도 = -PI/2)
+  const pointerAngle = -Math.PI / 2;
+  let normalizedAngle = ((pointerAngle - finalAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  const segIndex = Math.floor(normalizedAngle / ARC) % TOTAL_SEGMENTS;
+  return segIndex;
+}
+
+// ===== 스핀 =====
+function spin() {
+  if (isSpinning) return;
+  if (credit < bet) {
+    showMsg('크레딧이 부족합니다!');
+    return;
+  }
+
+  isSpinning = true;
+  credit -= bet;
+  spinCount++;
+  updateUI();
+
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.classList.add('disabled');
+  spinBtn.textContent = '...';
+
+  document.getElementById('spinMsg').textContent = '🌸 스피닝... 🌸';
+
+  // 목표 세그먼트 결정 (가중치 랜덤)
+  const targetIndex = weightedSegments[Math.floor(Math.random() * weightedSegments.length)];
+  const targetAngle = -Math.PI / 2 - (targetIndex * ARC + ARC / 2);
+
+  // 회전 계산
+  const totalRotations = (5 + Math.floor(Math.random() * 5)) * Math.PI * 2;
+  const finalAngle = (targetAngle - currentAngle % (Math.PI * 2)) + totalRotations;
+
+  const duration = 4000 + Math.random() * 2000;
+  const startAngle = currentAngle;
+  const startTime = performance.now();
+
+  function easeOut(t) {
+    return 1 - Math.pow(1 - t, 4);
+  }
+
+  function animate(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const easedT = easeOut(t);
+    currentAngle = startAngle + finalAngle * easedT;
+    drawRoulette(currentAngle);
+
+    if (t < 1) {
+      animId = requestAnimationFrame(animate);
+    } else {
+      currentAngle = startAngle + finalAngle;
+      drawRoulette(currentAngle);
+      onSpinEnd(getResultSegment(currentAngle));
+    }
+  }
+
+  animId = requestAnimationFrame(animate);
+}
+
+function onSpinEnd(segIndex) {
+  isSpinning = false;
+  const seg = SEGMENTS[segIndex];
+  const winAmount = Math.floor(bet * seg.multiplier);
+
+  credit += winAmount;
+  if (winAmount > 0) totalWin += winAmount;
+
+  updateUI();
+  document.getElementById('spinMsg').textContent = '';
+
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.classList.remove('disabled');
+  spinBtn.textContent = 'SPIN!';
+
+  showResult(seg, winAmount);
+
+  if (seg.multiplier >= 3) showPetals();
+  if (seg.multiplier === 50) showFlash();
+
+  // Firestore에 기록
+  db.collection("apps/app-mu5kjppf/items").add({
+    type: 'spin',
+    segment: seg.label,
+    multiplier: seg.multiplier,
+    bet: bet,
+    win: winAmount,
+    credit: credit,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+// ===== 결과 표시 =====
+function showResult(seg, winAmount) {
+  const overlay = document.getElementById('resultOverlay');
+  const emoji = document.getElementById('resultEmoji');
+  const title = document.getElementById('resultTitle');
+  const desc = document.getElementById('resultDesc');
+
+  overlay.className = 'result-overlay show';
+
+  if (seg.multiplier === 50) {
+    emoji.textContent = '🎊';
+    title.textContent = 'JACKPOT!!!';
+    title.className = 'result-title result-special';
+    desc.textContent = `베팅 ${bet.toLocaleString()} × ${seg.multiplier} = ${winAmount.toLocaleString()} 크레딧 획득!`;
+  } else if (seg.multiplier >= 5) {
+    emoji.textContent = '🌟';
+    title.textContent = '대박!!!';
+    title.className = 'result-title result-win';
+    desc.textContent = `${winAmount.toLocaleString()} 크레딧 획득! (x${seg.multiplier})`;
+  } else if (seg.multiplier > 1) {
+    emoji.textContent = '🌸';
+    title.textContent = '당첨!';
+    title.className = 'result-title result-win';
+    desc.textContent = `${winAmount.toLocaleString()} 크레딧 획득! (x${seg.multiplier})`;
+  } else if (seg.multiplier === 1) {
+    emoji.textContent = '🎀';
+    title.textContent = '본전!';
+    title.className = 'result-title result-win';
+    desc.textContent = `베팅금액 그대로 돌아왔어요.`;
+  } else {
+    emoji.textContent = '💸';
+    title.textContent = '꽝!';
+    title.className = 'result-title result-lose';
+    desc.textContent = `${bet.toLocaleString()} 크레딧을 잃었습니다. 다음엔 행운이!`;
+  }
+}
+
+function closeResult() {
+  document.getElementById('resultOverlay').className = 'result-overlay';
+  if (credit < 10) {
+    credit = 1000;
+    showMsg('💰 크레딧 부족! 1000 크레딧을 충전합니다!');
+    updateUI();
+  }
+}
+
+function showMsg(text) {
+  document.getElementById('spinMsg').textContent = text;
+  setTimeout(() => {
+    document.getElementById('spinMsg').textContent = '';
+  }, 2500);
+}
+
+// ===== 꽃잎 파티클 =====
+function showPetals() {
+  const petals = ['🌸', '🌺', '🌼', '🌷', '🌹', '💐'];
+  for (let i = 0; i < 20; i++) {
+    setTimeout(() => {
+      const petal = document.createElement('div');
+      petal.className = 'petal-particle';
+      petal.textContent = petals[Math.floor(Math.random() * petals.length)];
+      petal.style.left = Math.random() * 100 + 'vw';
+      petal.style.top = '-30px';
+      petal.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+      document.body.appendChild(petal);
+      petal.addEventListener('animationend', () => petal.remove());
+    }, i * 80);
+  }
+}
+
+function showFlash() {
+  const flash = document.createElement('div');
+  flash.className = 'flash';
+  document.body.appendChild(flash);
+  flash.addEventListener('animationend', () => flash.remove());
+}
+
+// ===== 베팅 컨트롤 =====
+function setBet(amount) {
+  bet = Math.min(amount, credit);
+  updateUI();
+}
+
+function setMaxBet() {
+  bet = credit;
+  updateUI();
+}
+
+function changeBet(delta) {
+  bet = Math.max(10, Math.min(bet + delta, credit));
+  updateUI();
+}
+
+// ===== UI 업데이트 =====
+function updateUI() {
+  document.getElementById('creditDisplay').textContent = credit.toLocaleString();
+  document.getElementById('totalWinDisplay').textContent = totalWin.toLocaleString();
+  document.getElementById('spinCountDisplay').textContent = spinCount;
+  document.getElementById('betDisplay').textContent = bet.toLocaleString();
+  if (bet > credit) bet = credit;
+  if (bet < 10 && credit >= 10) bet = 10;
+}
+
+// ===== 랭킹 =====
+function submitScore() {
+  const name = document.getElementById('playerName').value.trim();
+  if (!name) { alert('닉네임을 입력하세요!'); return; }
+  if (totalWin === 0) { alert('먼저 게임을 플레이하세요!'); return; }
+
+  db.collection("apps/app-mu5kjppf/items").add({
+    type: 'score',
+    name: name,
+    totalWin: totalWin,
+    spinCount: spinCount,
+    credit: credit,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    alert('점수가 등록되었습니다!');
+    document.getElementById('playerName').value = '';
+  });
+}
+
+function loadRanking() {
+  db.collection("apps/app-mu5kjppf/items")
+    .where('type', '==', 'score')
+    .orderBy('totalWin', 'desc')
+    .limit(10)
+    .onSnapshot(snapshot => {
+      const list = document.getElementById('rankingList');
+      list.innerHTML = '';
+      let rank = 1;
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        const item = document.createElement('li');
+        item.className = 'ranking-item';
+        item.innerHTML = `
+          <span class="rank-num">${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank + '위'}</span>
+          <span class="rank-name">${d.name}</span>
+          <span class="rank-score">${(d.totalWin || 0).toLocaleString()} WIN</span>
+        `;
+        list.appendChild(item);
+        rank++;
+      });
+      if (snapshot.empty) {
+        list.innerHTML = '<li style="color:#666; text-align:center; padding: 10px;">아직 등록된 점수가 없습니다</li>';
+      }
+    });
+}
+
+// ===== 초기화 =====
+function init() {
+  createStars();
+  renderSegInfo();
+  drawRoulette(currentAngle);
+  updateUI();
+  loadRanking();
+
+  document.getElementById('spinBtn').addEventListener('click', spin);
+  canvas.addEventListener('click', spin);
+}
+
+init();
+
+// 캔버스 크기 반응형 처리
+function resizeCanvas() {
+  const maxW = Math.min(window.innerWidth - 40, 420);
+  if (maxW < 420) {
+    canvas.style.width = maxW + 'px';
+    canvas.style.height = maxW + 'px';
+    document.querySelector('.game-area').style.width = maxW + 'px';
+    document.querySelector('.game-area').style.height = maxW + 'px';
+  }
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+</script>
+</body>
+</html>
